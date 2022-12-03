@@ -74,26 +74,67 @@ class TartanVO(object):
         print('Model loaded...')
         return model
 
-    def train_batch(self, dataloader, optimizer, criterion, dataset_len, epoch = 10):
-        
-        img0   = sample['img1'].cuda()
-        img1   = sample['img2'].cuda()
-        intrinsic = sample['intrinsic'].cuda()
-        motion = sample['motion'].cuda()
-        inputs = [img0, img1, intrinsic, motion]
+    def train_model(self, dataloader, optimizer, dataset_len, num_epochs = 10):
 
-        self.vonet.train()
-        flow, pose = self.vonet(inputs)
+        for epoch in range(num_epochs):
+            running_loss = 0.0
+            #To convert pose standard deviation to torch and moving into the GPU
+            pose_std = torch.from_numpy(self.pose_std).cuda()
 
-        return flow, pose
+            #data length = 4
+            for i, data in enumerate(dataloader):
+                self.vonet.train()
+                print(f'Epoch: {epoch+1}/{num_epochs}, Batch: {i+1}/{dataset_len}')
+                # get the inputs
+                print(len(data))
+                # inputs, labels = data
+                img0   = data['img1'].cuda()
+                img1   = data['img2'].cuda()
+                intrinsic = data['intrinsic'].cuda()
+                motion = data['motion'].cuda()
+                inputs = [img0, img1, intrinsic]
+                # zero the parameter gradients
+                optimizer.zero_grad()
+
+                # forward + backward + optimize
+                outputs = self.vonet(inputs)
+                flow, pose = outputs
+                #or torch.mul(pose, pose_std)
+                pose = pose * pose_std # scale the pose
+                #
+                # pose_std = torch.from_numpy(self.pose_std).cuda()
+                # pose = pose * self.pose_std
+                # loss = criterion(outputs, labels)
+                #Now we have our own loss function (Up to Scale Loss Function)
+                loss = self.loss_function(GT=motion, Est=pose)
+                loss.backward()
+                optimizer.step()
+
+                # print statistics
+                running_loss += loss.item()
+                if i % 10 == 9:
+                    print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 10))
+        print('Finished Training')
+        PATH = './models/vo_model.pth'
+        torch.save(self.vonet.state_dict(), PATH)
+        # torch.save(vonet.state_dict(), PATH)
 
     #Paper (TartanVO): https://arxiv.org/pdf/2011.00359.pdf
     #Up to Scale Loss Function
     def loss_function(self, GT, Est): #GT: ground truth, Est: estimated
-        L_f = torch.norm(GT[:,:3] - Est[:,:3], dim=1)
-        L_p = torch.norm(GT[:,3:] - Est[:,3:], dim=1)
-        
-        loss = lambda * L_f + L_p
+        epsilon = torch.tensor(1e-6)
+        # print('Ground Truth Shape', GT.shape)
+        # print('Estimated Pose Shape:', Est.shape)
+        trans_GT = GT[:, :3]
+        rot_GT = GT[:, 3:]
+        trans_Est = Est[:, :3]
+        rot_Est = Est[:, 3:]
+        trans_loss = torch.linalg.norm(trans_Est/torch.max(trans_Est, epsilon) - trans_GT/torch.max(trans_GT, epsilon))
+        rot_loss = torch.linalg.norm(rot_Est-rot_GT)
+        # L_f = torch.norm(GT[:,:3] - Est[:,:3], dim=1)
+        # L_p = torch.norm(GT[:,3:] - Est[:,3:], dim=1)
+        loss = trans_loss + rot_loss
+
         return loss
         
 

@@ -23,6 +23,9 @@ def get_args():
     #Batch size
     parser.add_argument('--batch-size', type=int, default=1,
                         help='batch size (default: 1)')
+    #Number of epochs
+    parser.add_argument('--epochs', type=int, default=10,
+                        help='number of epochs (default: 10)')
     #Number of Workers
     parser.add_argument('--worker-num', type=int, default=1,
                         help='data loader worker number (default: 1)')
@@ -109,48 +112,48 @@ if __name__ == '__main__':
         #vonet is our network
         optimizer = optim.SGD(trainvo.vonet.parameters(), lr=lr, weight_decay=decay)
         criterion = nn.MSELoss()
-        trainvo.train_batch(dataloader=trainDataloader, optimizer=optimizer, criterion=criterion, epochs=1, dataset_len=len(trainDataset))
+        trainvo.train_model(dataloader=trainDataloader, optimizer=optimizer, num_epochs=args.epochs, dataset_len=len(trainDataset))
 
 
     
-
-    motionlist = []
-    testname = datastr + '_' + args.model_name.split('.')[0]
-    if args.save_flow:
-        flowdir = 'results/'+testname+'_flow'
-        if not isdir(flowdir):
-            mkdir(flowdir)
-        flowcount = 0
-    while True:
-        try:
-            sample = testDataiter.next()
-        except StopIteration:
-            break
-
-        motions, flow = testvo.test_batch(sample)
-        motionlist.extend(motions)
-
+    if args.train_test == 'test':
+        motionlist = []
+        testname = datastr + '_' + args.model_name.split('.')[0]
         if args.save_flow:
-            for k in range(flow.shape[0]):
-                flowk = flow[k].transpose(1,2,0)
-                np.save(flowdir+'/'+str(flowcount).zfill(6)+'.npy',flowk)
-                flow_vis = visflow(flowk)
-                cv2.imwrite(flowdir+'/'+str(flowcount).zfill(6)+'.png',flow_vis)
-                flowcount += 1
+            flowdir = 'results/'+testname+'_flow'
+            if not isdir(flowdir):
+                mkdir(flowdir)
+            flowcount = 0
+        while True:
+            try:
+                sample = testDataiter.next()
+            except StopIteration:
+                break
 
-    poselist = ses2poses_quat(np.array(motionlist))
+            motions, flow = testvo.test_batch(sample)
+            motionlist.extend(motions)
 
-    # calculate ATE, RPE, KITTI-RPE
-    if args.pose_file.endswith('.txt'):
-        evaluator = TartanAirEvaluator()
-        results = evaluator.evaluate_one_trajectory(args.pose_file, poselist, scale=True, kittitype=(datastr=='kitti'))
-        if datastr=='euroc':
-            print("==> ATE: %.4f" %(results['ate_score']))
+            if args.save_flow:
+                for k in range(flow.shape[0]):
+                    flowk = flow[k].transpose(1,2,0)
+                    np.save(flowdir+'/'+str(flowcount).zfill(6)+'.npy',flowk)
+                    flow_vis = visflow(flowk)
+                    cv2.imwrite(flowdir+'/'+str(flowcount).zfill(6)+'.png',flow_vis)
+                    flowcount += 1
+
+        poselist = ses2poses_quat(np.array(motionlist))
+
+        # calculate ATE, RPE, KITTI-RPE
+        if args.pose_file.endswith('.txt'):
+            evaluator = TartanAirEvaluator()
+            results = evaluator.evaluate_one_trajectory(args.pose_file, poselist, scale=True, kittitype=(datastr=='kitti'))
+            if datastr=='euroc':
+                print("==> ATE: %.4f" %(results['ate_score']))
+            else:
+                print("==> ATE: %.4f,\t KITTI-R/t: %.4f, %.4f" %(results['ate_score'], results['kitti_score'][0], results['kitti_score'][1]))
+
+            # save results and visualization
+            plot_traj(results['gt_aligned'], results['est_aligned'], vis=False, savefigname='results/'+testname+'.png', title='ATE %.4f' %(results['ate_score']))
+            np.savetxt('results/'+testname+'.txt',results['est_aligned'])
         else:
-            print("==> ATE: %.4f,\t KITTI-R/t: %.4f, %.4f" %(results['ate_score'], results['kitti_score'][0], results['kitti_score'][1]))
-
-        # save results and visualization
-        plot_traj(results['gt_aligned'], results['est_aligned'], vis=False, savefigname='results/'+testname+'.png', title='ATE %.4f' %(results['ate_score']))
-        np.savetxt('results/'+testname+'.txt',results['est_aligned'])
-    else:
-        np.savetxt('results/'+testname+'.txt',poselist)
+            np.savetxt('results/'+testname+'.txt',poselist)
