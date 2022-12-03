@@ -15,6 +15,9 @@ import cv2
 from os import mkdir
 from os.path import isdir
 
+#wandb
+import wandb
+
 def get_args():
     parser = argparse.ArgumentParser(description='HRL')
     
@@ -68,10 +71,11 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
 
-
+    #load wandb
+    wandb.init(project="tartan_vo", entity="ahmedharbi")
 
     # load trajectory data from a folder
-    datastr = 'tartanair'
+    # datastr = 'tartanair'
     if args.kitti:
         datastr = 'kitti'
     elif args.euroc:
@@ -105,10 +109,12 @@ if __name__ == '__main__':
                                         focalx=focalx, focaly=focaly, centerx=centerx, centery=centery)
         trainDataloader = DataLoader(trainDataset, batch_size=args.batch_size, 
                                         shuffle=False, num_workers=args.worker_num)
-        trainDataiter = iter(trainDataloader)
-
+        # trainDataiter = iter(trainDataloader)
+        
         lr = 0.0001
-        decay = 0.0001
+        decay = 0.1
+        config = wandb.config
+        wandb.log({"lr": lr, "decay": decay})
         #vonet is our network
         optimizer = optim.SGD(trainvo.vonet.parameters(), lr=lr, weight_decay=decay)
         criterion = nn.MSELoss()

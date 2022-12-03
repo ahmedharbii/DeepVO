@@ -1,0 +1,5 @@
+[default]
+entity = ahmedharbi
+project = tartan_vo
+base_url = https://api.wandb.ai
+

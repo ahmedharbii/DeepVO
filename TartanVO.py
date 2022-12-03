@@ -33,6 +33,7 @@
 import torch
 import numpy as np
 import time
+import wandb
 
 np.set_printoptions(precision=4, suppress=True, threshold=10000)
 
@@ -75,7 +76,7 @@ class TartanVO(object):
         return model
 
     def train_model(self, dataloader, optimizer, dataset_len, num_epochs = 10):
-
+        print('Start training...')
         for epoch in range(num_epochs):
             running_loss = 0.0
             #To convert pose standard deviation to torch and moving into the GPU
@@ -84,9 +85,11 @@ class TartanVO(object):
             #data length = 4
             for i, data in enumerate(dataloader):
                 self.vonet.train()
-                print(f'Epoch: {epoch+1}/{num_epochs}, Batch: {i+1}/{dataset_len}')
+                # if i%100 == 99:
+                    # print('Epoch: {}, Iteration: {}'.format(epoch, i))
+                # print(f'Epoch: {epoch+1}/{num_epochs}, Batch: {i+1}/{dataset_len}')
                 # get the inputs
-                print(len(data))
+                # print(len(data))
                 # inputs, labels = data
                 img0   = data['img1'].cuda()
                 img1   = data['img2'].cuda()
@@ -97,25 +100,36 @@ class TartanVO(object):
                 optimizer.zero_grad()
 
                 # forward + backward + optimize
-                outputs = self.vonet(inputs)
-                flow, pose = outputs
-                #or torch.mul(pose, pose_std)
-                pose = pose * pose_std # scale the pose
-                #
-                # pose_std = torch.from_numpy(self.pose_std).cuda()
-                # pose = pose * self.pose_std
-                # loss = criterion(outputs, labels)
-                #Now we have our own loss function (Up to Scale Loss Function)
-                loss = self.loss_function(GT=motion, Est=pose)
-                loss.backward()
-                optimizer.step()
+                with torch.set_grad_enabled(True): #If i don't use this, the tensors will give nan values
+                    outputs = self.vonet(inputs)
+                    flow, pose = outputs
+                    #or torch.mul(pose, pose_std)
+                    pose = torch.div(pose, pose_std)
+                    # pose = pose / pose_std # divide by the standard deviation
+                    #
+                    # pose_std = torch.from_numpy(self.pose_std).cuda()
+                    # pose = pose * self.pose_std
+                    # loss = criterion(outputs, labels)
+                    #Now we have our own loss function (Up to Scale Loss Function)
+                    loss = self.loss_function(GT=motion, Est=pose)
+                    wandb.log({"loss": loss})
+                    loss.backward()
+                    optimizer.step()
 
                 # print statistics
                 running_loss += loss.item()
-                if i % 10 == 9:
-                    print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 10))
+                if (i+1) % 100 == 99:
+                    # print('Epoch: {}, Iteration: {}'.format(epoch, i))
+                    print('Epoch:[%d], Iteration:[%5d] loss: %.3f, running_loss: %.3f' % (epoch + 1, i + 1, loss.item(), running_loss / dataset_len))
+            
+            # if epoch % 10 == 0:
+                # torch.save({
+                #     'model_state_dict': self.vonet.state_dict(),
+                #     'optimizer_state_dict': optimizer.state_dict(),
+                # }, f'./models/epoch_{epoch}_batch_{i}.pkl')
+
         print('Finished Training')
-        PATH = './models/vo_model.pth'
+        PATH = './models/vo_model.pkl'
         torch.save(self.vonet.state_dict(), PATH)
         # torch.save(vonet.state_dict(), PATH)
 
@@ -125,11 +139,15 @@ class TartanVO(object):
         epsilon = torch.tensor(1e-6)
         # print('Ground Truth Shape', GT.shape)
         # print('Estimated Pose Shape:', Est.shape)
+        # print(Est)
         trans_GT = GT[:, :3]
         rot_GT = GT[:, 3:]
         trans_Est = Est[:, :3]
         rot_Est = Est[:, 3:]
-        trans_loss = torch.linalg.norm(trans_Est/torch.max(trans_Est, epsilon) - trans_GT/torch.max(trans_GT, epsilon))
+        trans_loss = torch.linalg.norm(trans_Est/torch.max(torch.linalg.norm(trans_Est), epsilon) - trans_GT/torch.max(torch.linalg.norm(trans_GT), epsilon))
+        # scale = np.linalg.norm(GT[:,:3], axis=1)
+        # trans_loss = trans_Est/np.linalg.norm(trans_Est,axis=1).reshape(-1,1)*scale.reshape(-1,1)
+        # print('trans_est: ',trans_Est)
         rot_loss = torch.linalg.norm(rot_Est-rot_GT)
         # L_f = torch.norm(GT[:,:3] - Est[:,:3], dim=1)
         # L_p = torch.norm(GT[:,3:] - Est[:,3:], dim=1)
