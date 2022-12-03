@@ -1,3 +1,9 @@
+#Data folder
+data/
+results/euroc_tartanvo_1914_flow/*.png
+results/euroc_tartanvo_1914_flow/*.npy
+results/kitti_tartanvo_1914_flow/*.png
+results/kitti_tartanvo_1914_flow/*.npy
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
