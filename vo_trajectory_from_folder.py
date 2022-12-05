@@ -111,14 +111,14 @@ if __name__ == '__main__':
                                         shuffle=False, num_workers=args.worker_num)
         # trainDataiter = iter(trainDataloader)
         
-        lr = 0.0001
-        decay = 0.1
+        lr = 1e-4
+        decay = 0.2
         config = wandb.config
         wandb.log({"lr": lr, "decay": decay})
         #vonet is our network
-        optimizer = optim.SGD(trainvo.vonet.parameters(), lr=lr, weight_decay=decay)
-        criterion = nn.MSELoss()
-        trainvo.train_model(dataloader=trainDataloader, optimizer=optimizer, num_epochs=args.epochs, dataset_len=len(trainDataset))
+        optimizer = optim.Adam(trainvo.vonet.parameters(), lr=lr, weight_decay=decay)
+        # criterion = nn.MSELoss()
+        trainvo.train_model(trainvo.vonet, dataloader=trainDataloader, optimizer=optimizer, num_epochs=args.epochs, dataset_len=len(trainDataset))
 
 
     

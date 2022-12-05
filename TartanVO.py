@@ -48,6 +48,7 @@ class TartanVO(object):
         if model_name.endswith('.pkl'):
             modelname = 'models/' + model_name
             self.load_model(self.vonet, modelname)
+            print('Model loaded... a7aaaaaaaaaa')
 
         self.vonet.cuda()
 
@@ -72,11 +73,15 @@ class TartanVO(object):
 
         model_dict.update(preTrainDictTemp)
         model.load_state_dict(model_dict)
-        print('Model loaded...')
+        print('Model loaded... a7aaaaaaaaaa number 2')
         return model
 
-    def train_model(self, dataloader, optimizer, dataset_len, num_epochs = 10):
+    def train_model(self, model, dataloader, optimizer, dataset_len, num_epochs = 10):
+        # model = self.load_model(self.vonet, 'models/vo_model.pkl')
+        # model = model
+        print('Model Loaded')
         print('Start training...')
+        
         for epoch in range(num_epochs):
             running_loss = 0.0
             #To convert pose standard deviation to torch and moving into the GPU
@@ -84,7 +89,7 @@ class TartanVO(object):
 
             #data length = 4
             for i, data in enumerate(dataloader):
-                self.vonet.train()
+                model.train()
                 # if i%100 == 99:
                     # print('Epoch: {}, Iteration: {}'.format(epoch, i))
                 # print(f'Epoch: {epoch+1}/{num_epochs}, Batch: {i+1}/{dataset_len}')
@@ -98,10 +103,9 @@ class TartanVO(object):
                 inputs = [img0, img1, intrinsic]
                 # zero the parameter gradients
                 optimizer.zero_grad()
-
                 # forward + backward + optimize
-                with torch.set_grad_enabled(True): #If i don't use this, the tensors will give nan values
-                    outputs = self.vonet(inputs)
+                with torch.set_grad_enabled(True):
+                    outputs = model(inputs)
                     flow, pose = outputs
                     #or torch.mul(pose, pose_std)
                     pose = torch.div(pose, pose_std)
@@ -112,24 +116,35 @@ class TartanVO(object):
                     # loss = criterion(outputs, labels)
                     #Now we have our own loss function (Up to Scale Loss Function)
                     loss = self.loss_function(GT=motion, Est=pose)
-                    wandb.log({"loss": loss})
+                    
                     loss.backward()
                     optimizer.step()
+                    # optimizer.zero_grad()
+                    # https://medium.com/deelvin-machine-learning/four-ways-to-increase-batch-size-in-deep-neural-network-training-a04ab3116088
+                    # https://kozodoi.me/python/deep%20learning/pytorch/tutorial/2021/02/19/gradient-accumulation.html
+                    #Gradient Accumulation:
+                    # Imagine you want to use 32 images in one batch, but your hardware 
+                    # crashes once you go beyond 8. In that case, you can use batches of 8 images and update weights once every 4 batches.
+                    # if (i + 1) % 8 == 0 or i + 1 == len(dataloader):
+                        # print('Gradient Accumulation')
+                    # optimizer.step()  
+                    # optimizer.zero_grad()
 
                 # print statistics
-                running_loss += loss.item()
+                running_loss += loss.item()/dataset_len
+                wandb.log({"Running Loss": running_loss})
                 if (i+1) % 100 == 99:
                     # print('Epoch: {}, Iteration: {}'.format(epoch, i))
-                    print('Epoch:[%d], Iteration:[%5d] loss: %.3f, running_loss: %.3f' % (epoch + 1, i + 1, loss.item(), running_loss / dataset_len))
+                    print('Epoch:[%d], Iteration:[%5d] , running_loss: %.3f' % (epoch + 1, i + 1, running_loss))
             
-            # if epoch % 10 == 0:
-                # torch.save({
-                #     'model_state_dict': self.vonet.state_dict(),
-                #     'optimizer_state_dict': optimizer.state_dict(),
-                # }, f'./models/epoch_{epoch}_batch_{i}.pkl')
+            if epoch % 2 == 1:
+                torch.save({
+                    'model_state_dict': self.vonet.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                }, f'./models/epoch_{epoch}_batch_{i}.pkl')
 
         print('Finished Training')
-        PATH = './models/vo_model.pkl'
+        PATH = './models/vo_model_pretrained.pkl'
         torch.save(self.vonet.state_dict(), PATH)
         # torch.save(vonet.state_dict(), PATH)
 
@@ -145,12 +160,7 @@ class TartanVO(object):
         trans_Est = Est[:, :3]
         rot_Est = Est[:, 3:]
         trans_loss = torch.linalg.norm(trans_Est/torch.max(torch.linalg.norm(trans_Est), epsilon) - trans_GT/torch.max(torch.linalg.norm(trans_GT), epsilon))
-        # scale = np.linalg.norm(GT[:,:3], axis=1)
-        # trans_loss = trans_Est/np.linalg.norm(trans_Est,axis=1).reshape(-1,1)*scale.reshape(-1,1)
-        # print('trans_est: ',trans_Est)
         rot_loss = torch.linalg.norm(rot_Est-rot_GT)
-        # L_f = torch.norm(GT[:,:3] - Est[:,:3], dim=1)
-        # L_p = torch.norm(GT[:,3:] - Est[:,3:], dim=1)
         loss = trans_loss + rot_loss
 
         return loss
