@@ -116,7 +116,12 @@ if __name__ == '__main__':
         config = wandb.config
         wandb.log({"lr": lr, "decay": decay})
         #vonet is our network
-        optimizer = optim.Adam(trainvo.vonet.parameters(), lr=lr, weight_decay=decay)
+        # Adam is a replacement optimization algorithm for stochastic gradient descent 
+        # for training deep learning models.
+        # Adam combines the best properties of the AdaGrad and RMSProp algorithms to 
+        # provide an optimization algorithm that can handle sparse gradients on noisy problems.
+        # adaptive optimizers, such as AdaGrad, RMSprop, Adam
+        optimizer = optim.RMSprop(trainvo.vonet.parameters(), lr=lr, weight_decay=decay)
         # criterion = nn.MSELoss()
         trainvo.train_model(trainvo.vonet, dataloader=trainDataloader, optimizer=optimizer, num_epochs=args.epochs, dataset_len=len(trainDataset))
 

@@ -81,15 +81,16 @@ class TartanVO(object):
         # model = model
         print('Model Loaded')
         print('Start training...')
-        
+        running_loss = 0.0
+        running_samples = 0
         for epoch in range(num_epochs):
-            running_loss = 0.0
+
             #To convert pose standard deviation to torch and moving into the GPU
             pose_std = torch.from_numpy(self.pose_std).cuda()
-
+            model.train()
             #data length = 4
             for i, data in enumerate(dataloader):
-                model.train()
+                
                 # if i%100 == 99:
                     # print('Epoch: {}, Iteration: {}'.format(epoch, i))
                 # print(f'Epoch: {epoch+1}/{num_epochs}, Batch: {i+1}/{dataset_len}')
@@ -129,23 +130,33 @@ class TartanVO(object):
                         # print('Gradient Accumulation')
                     # optimizer.step()  
                     # optimizer.zero_grad()
+                    wandb.log({"Loss": loss})
+                    running_loss += loss
+                    running_samples += pose.shape[0]
+                    # print(pose.shape[0]) #10
+                    if i % 100 == 0:
+                        print(f'ep: {epoch}, it: {i}, loss : {running_loss/running_samples:.5f}')
+                        running_loss = 0.
+                        running_samples = 0
 
                 # print statistics
-                running_loss += loss.item()/dataset_len
-                wandb.log({"Running Loss": running_loss})
-                if (i+1) % 100 == 99:
+                # running_loss += loss.item()/dataset_len
+                # wandb.log({"Running Loss": running_loss})
+                # if (i+1) % 100 == 99:
                     # print('Epoch: {}, Iteration: {}'.format(epoch, i))
-                    print('Epoch:[%d], Iteration:[%5d] , running_loss: %.3f' % (epoch + 1, i + 1, running_loss))
+                    # print('Epoch:[%d], Iteration:[%5d] , running_loss: %.3f' % (epoch + 1, i + 1, running_loss))
             
             if epoch % 2 == 1:
                 torch.save({
                     'model_state_dict': self.vonet.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                 }, f'./models/epoch_{epoch}_batch_{i}.pkl')
+                print(f'Epoch: {epoch}, Model Saved')
 
         print('Finished Training')
         PATH = './models/vo_model_pretrained.pkl'
-        torch.save(self.vonet.state_dict(), PATH)
+        # torch.save(self.vonet.state_dict(), PATH)
+        torch.save(model.state_dict(), PATH)
         # torch.save(vonet.state_dict(), PATH)
 
     #Paper (TartanVO): https://arxiv.org/pdf/2011.00359.pdf
@@ -199,4 +210,3 @@ class TartanVO(object):
 
         print("{} Pose inference using {}s: \n{}".format(self.test_count, inferencetime, posenp))
         return posenp, flownp
-
