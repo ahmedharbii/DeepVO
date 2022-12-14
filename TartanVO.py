@@ -44,11 +44,23 @@ class TartanVO(object):
     # Define named constants for default values
     DEFAULT_NUM_EPOCHS = 10
     SAVE_FREQUENCY = 2
-    def __init__(self, model_name):
+    def __init__(self, model_name, lr=0.0001, decay=0.2):
         # import ipdb;ipdb.set_trace()
         self.vonet = VONet()
+        # self.optimizer = optimizer
+        self.lr = lr
+        self.decay = decay
+        self.optimizer = torch.optim.Adam(self.vonet.parameters(), lr=self.lr, weight_decay=self.decay)
 
         # load the whole model
+        if model_name.endswith('.pth'):
+            model_file_path = os.path.join('models', model_name)
+            pretrained_model = torch.load(model_file_path)
+            self.vonet.load_state_dict(pretrained_model['model_state_dict'])
+            print('Model loaded...')
+            self.optimizer.load_state_dict(pretrained_model['optimizer_state_dict'])
+            print('Optimizer loaded...')
+
         if model_name.endswith('.pkl'):
             # modelname = 'models/' + model_name
             model_file_path = os.path.join('models', model_name)
@@ -108,7 +120,7 @@ class TartanVO(object):
                     flow, pose = outputs
                     #or torch.mul(pose, pose_std)
                     # pose = pose / pose_std # divide by the standard deviation
-                    pose = torch.div(pose, pose_std)
+                    pose = torch.mul(pose, pose_std) ## or divide, not sure
                     #Now we have our own loss function (Up to Scale Loss Function)
                     loss = self.loss_function(GT=motion, Est=pose)
                     loss.backward()
@@ -124,14 +136,18 @@ class TartanVO(object):
             
             if epoch % self.SAVE_FREQUENCY == 1:
                 torch.save({
-                    'model_state_dict': self.vonet.state_dict(),
+                    'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
-                }, f'./models/epoch_{epoch}_batch_{i}.pkl')
+                }, f'./models/epoch_{epoch}_batch_{i}.pth')
                 print(f'Epoch: {epoch}, Model Saved')
 
         print('Finished Training')
-        PATH = './models/vo_model_pretrained.pkl'
-        torch.save(model.state_dict(), PATH)
+        PATH = './models/vo_model_pretrained.pth'
+        torch.save({
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                }, PATH)
+        # torch.save(model.state_dict(), PATH)
 
     def loss_function(self, GT, Est):
         # Define a small constant value for epsilon
@@ -139,11 +155,13 @@ class TartanVO(object):
 
         # Compute the translation error
         trans_diff = GT[:, :3] - Est[:, :3]
+        #L2 norm, is used to calculate the translation error
         trans_norm = torch.norm(trans_diff, p=2) + epsilon
         trans_loss = torch.mean(trans_norm)
 
         # Compute the rotation error
         rot_diff = GT[:, 3:] - Est[:, 3:]
+        #Frobenius norm, is used to calculate the rotation error
         rot_norm = torch.norm(rot_diff, p='fro') + epsilon
         rot_loss = torch.mean(rot_norm)
 

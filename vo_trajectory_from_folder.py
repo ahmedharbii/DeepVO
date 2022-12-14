@@ -102,8 +102,10 @@ if __name__ == '__main__':
                                         shuffle=False, num_workers=args.worker_num)
         testDataiter = iter(testDataloader)
     ## Train Mode
-    else: 
-        trainvo = TartanVO(args.model_name)
+    else:
+        lr = 1e-3
+        decay = 0.01
+        trainvo = TartanVO(args.model_name, lr, decay)
         print('Train Mode Selected')
         trainDataset = TrajFolderDataset(args.test_dir,  posefile = args.pose_file, transform=transform, 
                                         focalx=focalx, focaly=focaly, centerx=centerx, centery=centery)
@@ -111,8 +113,7 @@ if __name__ == '__main__':
                                         shuffle=False, num_workers=args.worker_num)
         # trainDataiter = iter(trainDataloader)
         
-        lr = 1e-3
-        decay = 0.01
+        
         config = wandb.config
         wandb.log({"lr": lr, "decay": decay})
         #vonet is our network
@@ -121,10 +122,10 @@ if __name__ == '__main__':
         # Adam combines the best properties of the AdaGrad and RMSProp algorithms to 
         # provide an optimization algorithm that can handle sparse gradients on noisy problems.
         # adaptive optimizers, such as AdaGrad, RMSprop, Adam
-        optim.RMSprop
-        optimizer = optim.Adam(trainvo.vonet.parameters(), lr=lr, weight_decay=decay)
+        # optimizer = optim.Adam(trainvo.vonet.parameters(), lr=lr, weight_decay=decay)
         # criterion = nn.MSELoss()
-        trainvo.train_model(trainvo.vonet, dataloader=trainDataloader, optimizer=optimizer, num_epochs=args.epochs, dataset_len=len(trainDataset))
+        trainvo.train_model(trainvo.vonet, dataloader=trainDataloader, optimizer=trainvo.optimizer, num_epochs=args.epochs, dataset_len=len(trainDataset))
+        # trainvo.train_model(trainvo.vonet, dataloader=trainDataloader, optimizer=trainvo.optimizer, num_epochs=args.epochs, dataset_len=len(trainDataset))
 
 
     
