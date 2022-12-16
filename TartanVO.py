@@ -50,15 +50,15 @@ class TartanVO(object):
         # self.optimizer = optimizer
         self.lr = lr
         self.decay = decay
-        self.optimizer = torch.optim.Adam(self.vonet.parameters(), lr=self.lr, weight_decay=self.decay)
+        self.optimizer = torch.optim.RMSprop(self.vonet.parameters(), lr=self.lr, weight_decay=self.decay)
 
         # load the whole model
         if model_name.endswith('.pth'):
             model_file_path = os.path.join('models', model_name)
-            pretrained_model = torch.load(model_file_path)
+            pretrained_model = torch.load(model_file_path, map_location=('cuda:0'))
             self.vonet.load_state_dict(pretrained_model['model_state_dict'])
             print('Model loaded...')
-            self.optimizer.load_state_dict(pretrained_model['optimizer_state_dict'])
+            # self.optimizer.load_state_dict(pretrained_model['optimizer_state_dict'])
             print('Optimizer loaded...')
 
         if model_name.endswith('.pkl'):

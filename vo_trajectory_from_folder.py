@@ -103,7 +103,7 @@ if __name__ == '__main__':
         testDataiter = iter(testDataloader)
     ## Train Mode
     else:
-        lr = 1e-3
+        lr = 1e-2
         decay = 0.01
         trainvo = TartanVO(args.model_name, lr, decay)
         print('Train Mode Selected')

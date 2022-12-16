@@ -4,7 +4,8 @@ implementation of the PWC-DC network for optical flow estimation by Sun et al., 
 Jinwei Gu and Zhile Ren
 
 """
-
+#PWC: Pyramid, Warping, and Cost Volume
+#Estimate the optical flow between two images
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
