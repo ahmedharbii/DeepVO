@@ -43,8 +43,14 @@ class VONet(nn.Module):
         self.flowNet     = FlowNet()
         self.flowPoseNet = FlowPoseNet()
 
+        #freezing the weights of the flowPoseNet
+        # for param in self.flowPoseNet.parameters():
+        #     param.requires_grad = False
+        #     print("Freezing the weights of the flowPoseNet")
+
     def forward(self, x):
         # import ipdb;ipdb.set_trace()
+        # import pdb; pdb.set_trace()
         flow = self.flowNet(x[0:2])
         flow_input = torch.cat( ( flow, x[2] ), dim=1 )        
         pose = self.flowPoseNet( flow_input )

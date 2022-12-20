@@ -31,6 +31,8 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 import torch
+import torch.optim.lr_scheduler as lr_scheduler
+import torch.optim as optim
 import numpy as np
 import time
 import wandb
@@ -50,7 +52,9 @@ class TartanVO(object):
         # self.optimizer = optimizer
         self.lr = lr
         self.decay = decay
-        self.optimizer = torch.optim.RMSprop(self.vonet.parameters(), lr=self.lr, weight_decay=self.decay)
+        self.optimizer = optim.Adam(self.vonet.parameters(), lr=self.lr, weight_decay=self.decay)
+        # self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min',
+        #  factor=0.1, patience=10, verbose=False, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
 
         # load the whole model
         if model_name.endswith('.pth'):
@@ -120,12 +124,15 @@ class TartanVO(object):
                     flow, pose = outputs
                     #or torch.mul(pose, pose_std)
                     # pose = pose / pose_std # divide by the standard deviation
-                    pose = torch.mul(pose, pose_std) ## or divide, not sure
+                    # pose = torch.mul(pose, pose_std) ## or divide, not sure ## I uncommented the line in tartanTrajFlowDataset.py, line 27
                     #Now we have our own loss function (Up to Scale Loss Function)
-                    loss = self.loss_function(GT=motion, Est=pose)
+                    # loss = self.loss_function(GT=motion, Est=pose)
+                    loss = self.loss_function(pose_truth=motion, pose_est=pose)
                     loss.backward()
                     optimizer.step()
                     wandb.log({"Loss": loss})
+                    wandb.log({"lr": self.lr})
+                    wandb.log({"decay": self.decay})
                     running_loss += loss
                     running_samples += pose.shape[0]
                     # print(pose.shape[0]) #10
@@ -140,7 +147,8 @@ class TartanVO(object):
                     'optimizer_state_dict': optimizer.state_dict(),
                 }, f'./models/epoch_{epoch}_batch_{i}.pth')
                 print(f'Epoch: {epoch}, Model Saved')
-
+            # self.scheduler.step(loss)
+            # self.scheduler.step(loss)
         print('Finished Training')
         PATH = './models/vo_model_pretrained.pth'
         torch.save({
@@ -149,25 +157,25 @@ class TartanVO(object):
                 }, PATH)
         # torch.save(model.state_dict(), PATH)
 
-    def loss_function(self, GT, Est):
-        # Define a small constant value for epsilon
-        epsilon = torch.tensor(1e-6)
+    # def loss_function(self, GT, Est):
+    #     # Define a small constant value for epsilon
+    #     epsilon = torch.tensor(1e-6)
 
-        # Compute the translation error
-        trans_diff = GT[:, :3] - Est[:, :3]
-        #L2 norm, is used to calculate the translation error
-        trans_norm = torch.norm(trans_diff, p=2) + epsilon
-        trans_loss = torch.mean(trans_norm)
+    #     # Compute the translation error
+    #     trans_diff = GT[:, :3] - Est[:, :3]
+    #     #L2 norm, is used to calculate the translation error
+    #     trans_norm = torch.norm(trans_diff, p=2) + epsilon
+    #     trans_loss = torch.mean(trans_norm)
 
-        # Compute the rotation error
-        rot_diff = GT[:, 3:] - Est[:, 3:]
-        #Frobenius norm, is used to calculate the rotation error
-        rot_norm = torch.norm(rot_diff, p='fro') + epsilon
-        rot_loss = torch.mean(rot_norm)
+    #     # Compute the rotation error
+    #     rot_diff = GT[:, 3:] - Est[:, 3:]
+    #     #Frobenius norm, is used to calculate the rotation error
+    #     rot_norm = torch.norm(rot_diff, p='fro') + epsilon
+    #     rot_loss = torch.mean(rot_norm)
 
-        # Compute the total loss
-        total_loss = trans_loss + rot_loss
-        return total_loss
+    #     # Compute the total loss
+    #     total_loss = trans_loss + rot_loss
+    #     return total_loss
 
     # def loss_function(self, GT, Est): #GT: ground truth, Est: estimated
     #     epsilon = torch.tensor(1e-6)
@@ -180,7 +188,20 @@ class TartanVO(object):
     #     loss = trans_loss + rot_loss
 
     #     return loss
-        
+
+    def loss_function(self, pose_est, pose_truth):
+        e = torch.tensor(1e-6)
+        trans_est = pose_est[:,:3]
+        rot_est = pose_est[:,3:]
+        trans_truth = pose_truth[:,:3]
+        rot_truth = pose_truth[:,3:]
+        trans_est_norm = torch.linalg.norm(trans_est)
+        trans_truth_norm = torch.linalg.norm(trans_truth)
+
+        trans_loss = torch.linalg.norm(trans_est/torch.max(trans_est_norm, e) - trans_truth/torch.max(trans_truth_norm, e))
+        rot_loss = torch.linalg.norm(rot_est - rot_truth)
+        return trans_loss + rot_loss
+
 
     def test_batch(self, sample):
         self.test_count += 1

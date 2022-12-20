@@ -103,8 +103,8 @@ if __name__ == '__main__':
         testDataiter = iter(testDataloader)
     ## Train Mode
     else:
-        lr = 1e-2
-        decay = 0.01
+        lr = 1e-4
+        decay = 0.2
         trainvo = TartanVO(args.model_name, lr, decay)
         print('Train Mode Selected')
         trainDataset = TrajFolderDataset(args.test_dir,  posefile = args.pose_file, transform=transform, 
@@ -139,7 +139,8 @@ if __name__ == '__main__':
             flowcount = 0
         while True:
             try:
-                sample = testDataiter.next()
+                # sample = testDataiter.next() - I guess it's a problem with .pkl model file
+                sample = next(testDataiter)
             except StopIteration:
                 break
 

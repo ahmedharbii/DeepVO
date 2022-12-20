@@ -15,6 +15,7 @@ class TrajFolderDataset(Dataset):
         self.rgbfiles = [(imgfolder +'/'+ ff) for ff in files if (ff.endswith('.png') or ff.endswith('.jpg'))]
         self.rgbfiles.sort()
         self.imgfolder = imgfolder
+        self.pose_std = np.array([ 0.13,  0.13,  0.13,  0.013 ,  0.013,  0.013], dtype=np.float32) # the output scale factor
 
         print('Find {} image files in {}'.format(len(self.rgbfiles), imgfolder))
 
@@ -24,7 +25,7 @@ class TrajFolderDataset(Dataset):
             poses = pos_quats2SEs(poselist)
             self.matrix = pose2motion(poses)
             self.motions     = SEs2ses(self.matrix).astype(np.float32)
-            # self.motions = self.motions / self.pose_std
+            self.motions = self.motions / self.pose_std
             assert(len(self.motions) == len(self.rgbfiles)) - 1
         else:
             self.motions = None
