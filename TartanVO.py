@@ -46,15 +46,18 @@ class TartanVO(object):
     # Define named constants for default values
     DEFAULT_NUM_EPOCHS = 10
     SAVE_FREQUENCY = 2
+    
     def __init__(self, model_name, lr=0.0001, decay=0.2):
         # import ipdb;ipdb.set_trace()
+        self.accumulation_steps = 10
         self.vonet = VONet()
         # self.optimizer = optimizer
         self.lr = lr
         self.decay = decay
-        self.optimizer = optim.Adam(self.vonet.parameters(), lr=self.lr, weight_decay=self.decay)
-        # self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min',
-        #  factor=0.1, patience=10, verbose=False, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
+        # self.optimizer = optim.Adam(self.vonet.parameters(), lr=self.lr, weight_decay=self.decay)
+        self.optimizer = optim.RMSprop(self.vonet.parameters(), lr=self.lr, alpha=0.99, eps=1e-08)
+        self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, 'min',
+         factor=1/self.accumulation_steps, patience=10, verbose=False, threshold=0.0001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
 
         # load the whole model
         if model_name.endswith('.pth'):
@@ -98,8 +101,6 @@ class TartanVO(object):
         return model
 
     def train_model(self, model, dataloader, optimizer, dataset_len, num_epochs = 10):
-        # model = self.load_model(self.vonet, 'models/vo_model.pkl')
-        # model = model
         print('Model Loaded')
         print('Start training...')
         running_loss = 0.0
@@ -110,13 +111,14 @@ class TartanVO(object):
             pose_std = torch.from_numpy(self.pose_std).cuda()
             model.train()
             #data length = 4
+            
             for i, data in enumerate(dataloader):
                 img0   = data['img1'].cuda()
                 img1   = data['img2'].cuda()
                 intrinsic = data['intrinsic'].cuda()
                 motion = data['motion'].cuda()
                 inputs = [img0, img1, intrinsic]
-                # zero the parameter gradients
+                # zero the parameter gradients: to clear the gradients from the previous iteration.
                 optimizer.zero_grad()
                 # forward + backward + optimize
                 with torch.set_grad_enabled(True):
@@ -128,8 +130,16 @@ class TartanVO(object):
                     #Now we have our own loss function (Up to Scale Loss Function)
                     # loss = self.loss_function(GT=motion, Est=pose)
                     loss = self.loss_function(pose_truth=motion, pose_est=pose)
-                    loss.backward()
-                    optimizer.step()
+                    loss.backward(retain_graph=False)
+                    # accumulate gradients instead of updating model parameters
+                    if (i + 1) % self.accumulation_steps == 0:
+                        optimizer.step()
+                        # to reset the gradients for the next iteration, 
+                        # as the gradients will be accumulated again during the next forward and backward pass.
+                        optimizer.zero_grad()
+                        # update learning rate using the scheduler
+                        self.scheduler.step(loss)
+
                     wandb.log({"Loss": loss})
                     wandb.log({"lr": self.lr})
                     wandb.log({"decay": self.decay})
@@ -148,7 +158,7 @@ class TartanVO(object):
                 }, f'./models/epoch_{epoch}_batch_{i}.pth')
                 print(f'Epoch: {epoch}, Model Saved')
             # self.scheduler.step(loss)
-            # self.scheduler.step(loss)
+            
         print('Finished Training')
         PATH = './models/vo_model_pretrained.pth'
         torch.save({
