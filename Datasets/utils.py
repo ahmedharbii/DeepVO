@@ -222,8 +222,9 @@ def dataset_intrinsics(dataset='tartanair'):
     elif dataset == 'tartanair':
         focalx, focaly, centerx, centery = 320.0, 320.0, 320.0, 240.0
     elif dataset == 'unity':
-        focalx, focaly, centerx, centery = 337.43151415, 190.97863508, 320.0, 224.0 #focalx and focal y were negative
-        print('Unity Intrinsics are loaded: focalx, focaly, centerx, centery = 337.43151415, 190.97863508, 320.0, 224.0')
+        # focalx, focaly, centerx, centery = 337.43151415, 190.97863508, 320.0, 224.0 #focalx and focal y were negative
+        focalx, focaly, centerx, centery = 813.124, 830.767, 585.5, 265 #focalx and focal y were negative
+        print('Unity Intrinsics are loaded: focalx, focaly, centerx, centery = 813.124, 830.767, 585.5, 265')
     else:
         return None
     return focalx, focaly, centerx, centery

@@ -14,7 +14,7 @@ class TrajFolderDataset(Dataset):
         files = listdir(imgfolder)
         self.rgbfiles = [(imgfolder +'/'+ ff) for ff in files if (ff.endswith('.png') or ff.endswith('.jpg'))]
         self.rgbfiles.sort()
-        print(self.rgbfiles)
+        # print(self.rgbfiles)
         self.imgfolder = imgfolder
         self.pose_std = np.array([ 0.13,  0.13,  0.13,  0.013 ,  0.013,  0.013], dtype=np.float32) # the output scale factor
 
