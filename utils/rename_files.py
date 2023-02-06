@@ -6,6 +6,7 @@
 #\d part stands for "digit" and the + symbol means "one or more times".
 
 #Command: python rename_files.py "rgb_(\d+)" 1 5  back_forward/image_left/ back_forward/image_renamed
+# python rename_files.py "rgb_(\d+)" 1 5  ~/Datasets/Perception_dataset/circular_rock/rgb/ ~/Datasets/Perception_dataset/circular_rock/image_renamed
 
 import argparse
 import os

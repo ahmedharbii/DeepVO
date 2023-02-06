@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Software License Agreement (BSD License)
 #
 # Copyright (c) 2020, Wenshan Wang, Yaoyu Hu,  CMU

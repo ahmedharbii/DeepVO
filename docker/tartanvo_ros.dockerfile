@@ -2,6 +2,9 @@
 # generated from docker_images/create_ros_core_image.Dockerfile.em
 FROM nvidia/cuda:10.2-cudnn7-devel-ubuntu18.04
 
+RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys A4B469963BF863CC
+
+
 # setup timezone
 RUN echo 'Etc/UTC' > /etc/timezone && \
     ln -s /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
